@@ -238,6 +238,12 @@ class Toolbox(ListView):
             EraserTool(),
         )
 
+    @property
+    def selected_tool(self) -> Tool:
+        tool_selected = self.highlighted_child
+        assert isinstance(tool_selected, ToolboxItem)
+        return tool_selected.tool
+
 
 class TomodrawApp(App):
     CSS = """
@@ -255,7 +261,6 @@ class TomodrawApp(App):
     }
     """
 
-    tool: Tool = Tool.PENCIL
     draw: bool = False
 
     def compose(self) -> ComposeResult:
@@ -263,10 +268,9 @@ class TomodrawApp(App):
             yield Toolbox()
             yield Canvas()
 
-    @on(Toolbox.Selected)
-    def on_toolbox_tool_selected(self, event: Toolbox.Selected) -> None:
-        assert isinstance(event.item, ToolboxItem)
-        self.tool = event.item.tool
+    @property
+    def tool(self) -> Tool:
+        return self.query_one(Toolbox).selected_tool
 
     @property
     def pencil_brush_char(self) -> str:
