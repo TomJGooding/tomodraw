@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import enum
 
 from rich.segment import Segment
@@ -42,6 +40,7 @@ class Canvas(Widget):
         self.draw_cell(x, y, " ")
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
+        assert isinstance(self.app, TomodrawApp)
         self.app.draw = True
         if self.app.tool == Tool.PENCIL:
             self.draw_cell(event.x, event.y, self.app.pencil_brush_char)
@@ -49,6 +48,7 @@ class Canvas(Widget):
             self.erase_cell(event.x, event.y)
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
+        assert isinstance(self.app, TomodrawApp)
         if not self.app.draw:
             return
         if self.app.tool == Tool.PENCIL:
@@ -57,15 +57,12 @@ class Canvas(Widget):
             self.erase_cell(event.x, event.y)
 
     def on_mouse_up(self, _: events.MouseDown) -> None:
+        assert isinstance(self.app, TomodrawApp)
         self.app.draw = False
 
     def on_leave(self, _: events.Leave) -> None:
-        self.app.draw = False
-
-    @property
-    def app(self) -> TomodrawApp:
         assert isinstance(self.app, TomodrawApp)
-        return self.app
+        self.app.draw = False
 
 
 class ToolboxItem(ListItem):
