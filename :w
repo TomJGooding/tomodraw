@@ -4,6 +4,7 @@ from rich.segment import Segment
 from textual import events, on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
+from textual.screen import ModalScreen
 from textual.strip import Strip
 from textual.widget import Widget
 from textual.widgets import Button, Label, ListView
@@ -28,6 +29,11 @@ class Canvas(Widget):
 
     grid: list[list[str]] = [[" "] * 80 for _ in range(24)]
 
+    tool: Tool = Tool.PENCIL
+    draw: bool = False
+
+    pencil_char: str = DEFAULT_PENCIL_CHAR
+
     def render_line(self, y: int) -> Strip:
         return Strip([Segment(self.grid[y][x]) for x in range(80)])
 
@@ -39,29 +45,25 @@ class Canvas(Widget):
         self.draw_cell(x, y, " ")
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
-        assert isinstance(self.app, TomodrawApp)
-        self.app.draw = True
-        if self.app.tool == Tool.PENCIL:
-            self.draw_cell(event.x, event.y, self.app.pencil_char)
-        elif self.app.tool == Tool.ERASER:
+        self.draw = True
+        if self.tool == Tool.PENCIL:
+            self.draw_cell(event.x, event.y, self.pencil_char)
+        elif self.tool == Tool.ERASER:
             self.erase_cell(event.x, event.y)
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
-        assert isinstance(self.app, TomodrawApp)
-        if not self.app.draw:
+        if not self.draw:
             return
-        if self.app.tool == Tool.PENCIL:
-            self.draw_cell(event.x, event.y, self.app.pencil_char)
-        elif self.app.tool == Tool.ERASER:
+        if self.tool == Tool.PENCIL:
+            self.draw_cell(event.x, event.y, self.pencil_char)
+        elif self.tool == Tool.ERASER:
             self.erase_cell(event.x, event.y)
 
     def on_mouse_up(self, _: events.MouseDown) -> None:
-        assert isinstance(self.app, TomodrawApp)
-        self.app.draw = False
+        self.draw = False
 
     def on_leave(self, _: events.Leave) -> None:
-        assert isinstance(self.app, TomodrawApp)
-        self.app.draw = False
+        self.draw = False
 
 
 class ToolboxItem(ListItem):
@@ -121,6 +123,21 @@ class PencilTool(ToolboxItem):
             tool=Tool.PENCIL,
         )
 
+    @on(Button.Pressed)
+    def on_button_pressed(self) -> None:
+        self.app.push_screen(PencilSelectScreen())
+
+
+class PencilSelectScreen(ModalScreen):
+    DEFAULT_CSS = """
+    PencilSelectScreen {
+        background: transparent;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Label("Hello World!")
+
 
 class EraserTool(ToolboxItem):
     def __init__(self) -> None:
@@ -155,11 +172,6 @@ class TomodrawApp(App):
     }
     """
 
-    tool: Tool = Tool.PENCIL
-    draw: bool = False
-
-    pencil_char: str = DEFAULT_PENCIL_CHAR
-
     def compose(self) -> ComposeResult:
         with Horizontal():
             yield Toolbox()
@@ -168,7 +180,8 @@ class TomodrawApp(App):
     @on(Toolbox.Selected)
     def on_toolbox_tool_selected(self, event: Toolbox.Selected) -> None:
         assert isinstance(event.item, ToolboxItem)
-        self.tool = event.item.tool
+        canvas = self.query_one(Canvas)
+        canvas.tool = event.item.tool
 
 
 def run() -> None:
