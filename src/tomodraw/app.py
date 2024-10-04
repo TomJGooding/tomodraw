@@ -1,3 +1,4 @@
+import copy
 import enum
 
 from rich.segment import Segment
@@ -14,8 +15,9 @@ from textual.widgets._list_item import ListItem
 
 
 class Tool(enum.Enum):
-    PENCIL = 1
-    ERASER = 2
+    RECTANGLE = 1
+    PENCIL = 2
+    ERASER = 3
 
 
 class Canvas(Widget):
@@ -39,8 +41,58 @@ class Canvas(Widget):
     def erase_cell(self, x: int, y: int) -> None:
         self.draw_cell(x, y, " ")
 
+    def draw_horizontal_line(
+        self,
+        grid: list[list[str]],
+        y: int,
+        start_x: int,
+        end_x: int,
+    ) -> None:
+        assert start_x < end_x
+        for x in range(start_x, end_x + 1):
+            grid[y][x] = "─"
+
+    def draw_vertical_line(
+        self,
+        grid: list[list[str]],
+        x: int,
+        start_y: int,
+        end_y: int,
+    ) -> None:
+        for y in range(start_y, end_y + 1):
+            grid[y][x] = "│"
+
+    def draw_rectangle(self, x0: int, y0: int, x1: int, y1: int) -> None:
+        assert isinstance(self.app, TomodrawApp)
+        # TODO: Optimize the rectangle drawing method. Repeatedly creating deep
+        # copies of the canvas grid is obviously not very efficient!
+        new_grid = copy.deepcopy(self.app.last_canvas_grid)
+
+        start_x = min(x0, x1)
+        end_x = max(x0, x1)
+        start_y = min(y0, y1)
+        end_y = max(y0, y1)
+
+        if start_x != end_x:
+            self.draw_horizontal_line(new_grid, start_y, start_x, end_x)
+            self.draw_horizontal_line(new_grid, end_y, start_x, end_x)
+        if start_y != end_y:
+            self.draw_vertical_line(new_grid, start_x, start_y, end_y)
+            self.draw_vertical_line(new_grid, end_x, start_y, end_y)
+        if start_x != end_x and start_y != end_y:
+            new_grid[start_y][start_x] = "┌"
+            new_grid[end_y][start_x] = "└"
+            new_grid[start_y][end_x] = "┐"
+            new_grid[end_y][end_x] = "┘"
+
+        self.grid = new_grid
+        self.refresh()
+
     def on_mouse_down(self, event: events.MouseDown) -> None:
         assert isinstance(self.app, TomodrawApp)
+        self.app.last_canvas_grid = self.grid
+        self.app.tool_start_x = event.x
+        self.app.tool_start_y = event.y
         self.app.draw = True
         if self.app.tool == Tool.PENCIL:
             self.draw_cell(event.x, event.y, self.app.pencil_brush_char)
@@ -55,6 +107,13 @@ class Canvas(Widget):
             self.draw_cell(event.x, event.y, self.app.pencil_brush_char)
         elif self.app.tool == Tool.ERASER:
             self.erase_cell(event.x, event.y)
+        elif self.app.tool == Tool.RECTANGLE:
+            self.draw_rectangle(
+                self.app.tool_start_x,
+                self.app.tool_start_y,
+                event.x,
+                event.y,
+            )
 
     def on_mouse_up(self, _: events.MouseDown) -> None:
         assert isinstance(self.app, TomodrawApp)
@@ -81,6 +140,11 @@ class ToolboxItem(ListItem):
     def __init__(self, *children: Widget, tool: Tool) -> None:
         super().__init__(*children)
         self.tool = tool
+
+
+class RectangleTool(ToolboxItem):
+    def __init__(self) -> None:
+        super().__init__(Label("Rectangle"), tool=Tool.RECTANGLE)
 
 
 class PencilTool(ToolboxItem):
@@ -234,6 +298,7 @@ class Toolbox(ListView):
 
     def __init__(self) -> None:
         super().__init__(
+            RectangleTool(),
             PencilTool(),
             EraserTool(),
         )
@@ -262,6 +327,11 @@ class TomodrawApp(App):
     """
 
     draw: bool = False
+
+    tool_start_x = 0
+    tool_start_y = 0
+
+    last_canvas_grid: list[list[str]] = [[" "] * 80 for _ in range(24)]
 
     def compose(self) -> ComposeResult:
         with Horizontal():
