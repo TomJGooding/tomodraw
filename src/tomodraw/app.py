@@ -16,8 +16,9 @@ from textual.widgets._list_item import ListItem
 
 class Tool(enum.Enum):
     RECTANGLE = 1
-    PENCIL = 2
-    ERASER = 3
+    LINE = 2
+    PENCIL = 3
+    ERASER = 4
 
 
 class Canvas(Widget):
@@ -59,6 +60,7 @@ class Canvas(Widget):
         start_y: int,
         end_y: int,
     ) -> None:
+        assert start_y < end_y
         for y in range(start_y, end_y + 1):
             grid[y][x] = "│"
 
@@ -88,6 +90,41 @@ class Canvas(Widget):
         self.grid = new_grid
         self.refresh()
 
+    def draw_line(
+        self,
+        x0: int,
+        y0: int,
+        x1: int,
+        y1: int,
+        horizontal_first: bool,
+    ) -> None:
+        assert isinstance(self.app, TomodrawApp)
+        # TODO: Optimize the line drawing method. Repeatedly creating deep
+        # copies of the canvas grid is obviously not very efficient!
+        new_grid = copy.deepcopy(self.app.last_canvas_grid)
+
+        start_x = min(x0, x1)
+        end_x = max(x0, x1)
+        start_y = min(y0, y1)
+        end_y = max(y0, y1)
+
+        if start_x != end_x:
+            y = y0 if horizontal_first else y1
+            self.draw_horizontal_line(new_grid, y, start_x, end_x)
+        if start_y != end_y:
+            x = x1 if horizontal_first else x0
+            self.draw_vertical_line(new_grid, x, start_y, end_y)
+        if start_x != end_x and start_y != end_y:
+            if horizontal_first:
+                corner_char = (("└", "┌"), ("┘", "┐"))[x0 < x1][y0 < y1]
+                new_grid[y0][x1] = corner_char
+            else:
+                corner_char = (("┐", "┘"), ("┌", "└"))[x0 < x1][y0 < y1]
+                new_grid[y1][x0] = corner_char
+
+        self.grid = new_grid
+        self.refresh()
+
     def on_mouse_down(self, event: events.MouseDown) -> None:
         assert isinstance(self.app, TomodrawApp)
         self.app.last_canvas_grid = self.grid
@@ -113,6 +150,18 @@ class Canvas(Widget):
                 self.app.tool_start_y,
                 event.x,
                 event.y,
+            )
+        elif self.app.tool == Tool.LINE:
+            # TODO: Investigate why the Ctrl key is only reported as pressed
+            # in urxvt during MouseMove events if the key was pressed on the
+            # initial MouseDown event. Other terminal emulators tested seem to
+            # work as expected?
+            self.draw_line(
+                self.app.tool_start_x,
+                self.app.tool_start_y,
+                event.x,
+                event.y,
+                horizontal_first=event.ctrl,
             )
 
     def on_mouse_up(self, _: events.MouseDown) -> None:
@@ -145,6 +194,11 @@ class ToolboxItem(ListItem):
 class RectangleTool(ToolboxItem):
     def __init__(self) -> None:
         super().__init__(Label("Rectangle"), tool=Tool.RECTANGLE)
+
+
+class LineTool(ToolboxItem):
+    def __init__(self) -> None:
+        super().__init__(Label("Line"), tool=Tool.LINE)
 
 
 class PencilTool(ToolboxItem):
@@ -299,6 +353,7 @@ class Toolbox(ListView):
     def __init__(self) -> None:
         super().__init__(
             RectangleTool(),
+            LineTool(),
             PencilTool(),
             EraserTool(),
         )
