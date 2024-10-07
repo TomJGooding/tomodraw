@@ -152,10 +152,14 @@ class Canvas(Widget):
                 event.y,
             )
         elif self.app.tool == Tool.LINE:
-            # TODO: Investigate why the Ctrl key is only reported as pressed
-            # in urxvt during MouseMove events if the key was pressed on the
-            # initial MouseDown event. Other terminal emulators tested seem to
-            # work as expected?
+            # It seems that some terminal emulators (e.g. urxvt) might handle
+            # mouse and modifier key events differently than most others.
+            # Instead of continuously checking the state of modifier keys
+            # during mouse interactions, these emulators only seem to indicate
+            # the modifiers pressed at the time the mouse button was clicked.
+            # This means that in some terminal emulators, pressing or releasing
+            # the Ctrl key while dragging the mouse will not change the line
+            # orientation.
             self.draw_line(
                 self.app.tool_start_x,
                 self.app.tool_start_y,
