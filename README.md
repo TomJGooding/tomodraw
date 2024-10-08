@@ -1,5 +1,7 @@
 # tomodraw
 
+Draw ASCII diagrams in your terminal.
+
 > [!WARNING]
 > This project is currently a work in progress
 
