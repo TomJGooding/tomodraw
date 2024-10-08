@@ -10,15 +10,15 @@ from textual.geometry import Offset
 from textual.screen import ModalScreen
 from textual.strip import Strip
 from textual.widget import Widget
-from textual.widgets import Button, DataTable, Label, ListView
-from textual.widgets._list_item import ListItem
+from textual.widgets import Button, DataTable, Input, Label, ListItem, ListView
 
 
 class Tool(enum.Enum):
     RECTANGLE = 1
-    LINE = 2
-    PENCIL = 3
-    ERASER = 4
+    TEXT = 2
+    LINE = 3
+    PENCIL = 4
+    ERASER = 5
 
 
 class Canvas(Widget):
@@ -125,6 +125,11 @@ class Canvas(Widget):
         self.grid = new_grid
         self.refresh()
 
+    def draw_text(self, text: str, start_x: int, start_y) -> None:
+        for x, char in enumerate(text, start=start_x):
+            self.grid[start_y][x] = char
+        self.refresh()
+
     def on_mouse_down(self, event: events.MouseDown) -> None:
         assert isinstance(self.app, TomodrawApp)
         self.app.last_canvas_grid = self.grid
@@ -135,6 +140,17 @@ class Canvas(Widget):
             self.draw_cell(event.x, event.y, self.app.pencil_brush_char)
         elif self.app.tool == Tool.ERASER:
             self.erase_cell(event.x, event.y)
+        elif self.app.tool == Tool.TEXT:
+            # TODO: Investigate using the TextArea rather than the Input widget
+            # to allow drawing multi-line text.
+            text_input = TextInputOverlay(
+                max_length=80 - event.x,
+                start_x=event.x,
+                start_y=event.y,
+            )
+            text_input._absolute_offset = event.screen_offset
+            self.app.mount(text_input)
+            text_input.focus()
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
         assert isinstance(self.app, TomodrawApp)
@@ -198,6 +214,51 @@ class ToolboxItem(ListItem):
 class RectangleTool(ToolboxItem):
     def __init__(self) -> None:
         super().__init__(Label("Rectangle"), tool=Tool.RECTANGLE)
+
+
+class TextTool(ToolboxItem):
+    def __init__(self) -> None:
+        super().__init__(Label("Text"), tool=Tool.TEXT)
+
+
+class TextInputOverlay(Input):
+    DEFAULT_CSS = """
+    TextInputOverlay {
+        layer: overlay;
+        width: auto;
+        height: auto;
+        padding: 0;
+        border: none;
+
+        &:focus {
+            border: none;
+        }
+    }
+    """
+
+    def __init__(
+        self,
+        start_x: int,
+        start_y: int,
+        max_length: int = 0,
+    ) -> None:
+        super().__init__(max_length=max_length)
+        self.start_x = start_x
+        self.start_y = start_y
+
+    def dismiss(self) -> None:
+        assert isinstance(self.app, TomodrawApp)
+        canvas = self.app.query_one(Canvas)
+        canvas.draw_text(self.value, self.start_x, self.start_y)
+        self.remove()
+
+    @on(Input.Submitted)
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        self.dismiss()
+
+    def on_blur(self, _: events.Blur) -> None:
+        self.dismiss()
 
 
 class LineTool(ToolboxItem):
@@ -357,6 +418,7 @@ class Toolbox(ListView):
     def __init__(self) -> None:
         super().__init__(
             RectangleTool(),
+            TextTool(),
             LineTool(),
             PencilTool(),
             EraserTool(),
@@ -373,6 +435,7 @@ class TomodrawApp(App):
     CSS = """
     Screen {
         align: center middle;
+        layers: base overlay;
     }
 
     PencilSelectScreen {
