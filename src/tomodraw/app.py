@@ -148,7 +148,7 @@ class Canvas(Widget):
                 start_x=event.x,
                 start_y=event.y,
             )
-            text_input._absolute_offset = event.screen_offset
+            text_input.absolute_offset = event.screen_offset
             self.app.mount(text_input)
             text_input.focus()
 
