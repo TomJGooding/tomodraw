@@ -1,7 +1,9 @@
 import copy
 import enum
 
+import pyperclip
 from rich.segment import Segment
+from rich.text import TextType
 from textual import events, on
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal
@@ -31,6 +33,10 @@ class Canvas(Widget):
     """
 
     grid: list[list[str]] = [[" "] * 80 for _ in range(24)]
+
+    @property
+    def grid_as_text(self) -> str:
+        return "\n".join("".join(row) for row in self.grid)
 
     def render_line(self, y: int) -> Strip:
         return Strip([Segment(self.grid[y][x]) for x in range(80)])
@@ -431,6 +437,54 @@ class Toolbox(ListView):
         return tool_selected.tool
 
 
+class MenuButton(Button, can_focus=False):
+    DEFAULT_CSS = """
+    MenuButton {
+        height: 1;
+        min-width: 8;
+        border: none;
+        padding: 0 1;
+        background: $panel-lighten-1;
+        &:hover {
+            border: none;
+            padding: 0 1;
+            background: $panel;
+        }
+    }
+    """
+
+    def __init__(
+        self,
+        label: TextType | None = None,
+        *,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+        disabled: bool = False,
+    ):
+        super().__init__(
+            label,
+            name=name,
+            id=id,
+            classes=classes,
+            disabled=disabled,
+        )
+
+
+class CanvasMenu(Container):
+    DEFAULT_CSS = """
+    CanvasMenu {
+        width: 99;
+        height: 1;
+        layout: horizontal;
+        align: right middle;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield MenuButton("Copy to clipboard", id="copy-button")
+
+
 class TomodrawApp(App):
     CSS = """
     Screen {
@@ -445,6 +499,7 @@ class TomodrawApp(App):
     Horizontal {
         width: auto;
         height: auto;
+        margin-bottom: 1;
     }
     """
 
@@ -456,6 +511,7 @@ class TomodrawApp(App):
     last_canvas_grid: list[list[str]] = [[" "] * 80 for _ in range(24)]
 
     def compose(self) -> ComposeResult:
+        yield CanvasMenu()
         with Horizontal():
             yield Toolbox()
             yield Canvas()
@@ -467,6 +523,15 @@ class TomodrawApp(App):
     @property
     def pencil_brush_char(self) -> str:
         return self.query_one(PencilTool).brush_char
+
+    @on(MenuButton.Pressed, "#copy-button")
+    def on_copy_button_pressed(self) -> None:
+        canvas = self.query_one(Canvas)
+        try:
+            pyperclip.copy(canvas.grid_as_text)
+            self.notify("Copied drawing to clipboard")
+        except pyperclip.PyperclipException:
+            self.notify("Error copying to clipboard", severity="error")
 
 
 def run() -> None:
