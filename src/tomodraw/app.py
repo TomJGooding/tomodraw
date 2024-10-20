@@ -136,6 +136,10 @@ class Canvas(Widget):
             self.grid[start_y][x] = char
         self.refresh()
 
+    def clear(self) -> None:
+        self.grid = [[" "] * 80 for _ in range(24)]
+        self.refresh()
+
     def on_mouse_down(self, event: events.MouseDown) -> None:
         assert isinstance(self.app, TomodrawApp)
         self.app.last_canvas_grid = self.grid
@@ -479,10 +483,15 @@ class CanvasMenu(Container):
         height: 1;
         layout: horizontal;
         align: right middle;
+
+        MenuButton {
+            margin-left: 1;
+        }
     }
     """
 
     def compose(self) -> ComposeResult:
+        yield MenuButton("Clear", id="clear-button")
         yield MenuButton("Copy to clipboard", id="copy-button")
 
 
@@ -533,6 +542,11 @@ class TomodrawApp(App):
             self.notify("Copied drawing to clipboard")
         except pyperclip.PyperclipException:
             self.notify("Error copying to clipboard", severity="error")
+
+    @on(MenuButton.Pressed, "#clear-button")
+    def on_clear_button_pressed(self) -> None:
+        canvas = self.query_one(Canvas)
+        canvas.clear()
 
 
 def run() -> None:
