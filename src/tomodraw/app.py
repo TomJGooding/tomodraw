@@ -34,10 +34,6 @@ class Canvas(Widget):
 
     grid: list[list[str]] = [[" "] * 80 for _ in range(24)]
 
-    @property
-    def grid_as_text(self) -> str:
-        return "\n".join("".join(row) for row in self.grid)
-
     def render_line(self, y: int) -> Strip:
         return Strip([Segment(self.grid[y][x]) for x in range(80)])
 
@@ -139,6 +135,21 @@ class Canvas(Widget):
     def clear(self) -> None:
         self.grid = [[" "] * 80 for _ in range(24)]
         self.refresh()
+
+    @property
+    def cropped_drawing(self) -> str:
+        top, bottom, left, right = -1, -1, -1, -1
+        for row_idx, row in enumerate(self.grid):
+            for col_idx, char in enumerate(row):
+                if char != " ":
+                    if top == -1:
+                        top = row_idx
+                    bottom = row_idx
+                    left = col_idx if left == -1 else min(left, col_idx)
+                    right = max(right, col_idx)
+
+        cropped_grid = [row[left : right + 1] for row in self.grid[top : bottom + 1]]
+        return "\n".join("".join(row) for row in cropped_grid)
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
         assert isinstance(self.app, TomodrawApp)
@@ -538,7 +549,7 @@ class TomodrawApp(App):
     def on_copy_button_pressed(self) -> None:
         canvas = self.query_one(Canvas)
         try:
-            pyperclip.copy(canvas.grid_as_text)
+            pyperclip.copy(canvas.cropped_drawing)
             self.notify("Copied drawing to clipboard")
         except pyperclip.PyperclipException:
             self.notify("Error copying to clipboard", severity="error")
